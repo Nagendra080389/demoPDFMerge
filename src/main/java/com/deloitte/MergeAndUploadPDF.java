@@ -14,6 +14,9 @@ import com.sforce.ws.ConnectorConfig;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
@@ -87,15 +90,6 @@ public class MergeAndUploadPDF {
                             }
                         });
 
-                        //for (File inputFile : inputFiles) {
-                            /*PdfReader ReadInputPDF = new PdfReader(inputFile.toString());
-                            number_of_pages = ReadInputPDF.getNumberOfPages();
-                            for (int page = 0; page < number_of_pages; ) {
-                                copy.addPage(copy.getImportedPage(ReadInputPDF, ++page));
-                            }
-                            copy.freeReader(ReadInputPDF);
-                            ReadInputPDF.close();*/
-                        //}
                         PDFCombineUsingJava.close();
                         copy.close();
                         File mergedFile = new File("CombinedPDFDocument" + ".pdf");
@@ -104,8 +98,13 @@ public class MergeAndUploadPDF {
                         System.out.println("Creating ContentVersion record...");
                         ContentVersion[] record = new ContentVersion[1];
                         ContentVersion mergedContentData = new ContentVersion();
+                        //Get file channel in readonly mode
+                        FileChannel fileChannel = new RandomAccessFile(mergedFile, "r").getChannel();
+                        //Get direct byte buffer access using channel.map() operation
+                        MappedByteBuffer buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, fileChannel.size());
 
-                        mergedContentData.setVersionData(Files.readAllBytes(mergedFile.toPath()));
+
+                        mergedContentData.setVersionData(buffer.array());
                         mergedContentData.setFirstPublishLocationId(parentId);
                         mergedContentData.setTitle("Merged Document");
                         mergedContentData.setPathOnClient("/CombinedPDFDocument.pdf");
