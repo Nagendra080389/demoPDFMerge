@@ -77,14 +77,14 @@ public class MergeAndUploadPDF {
                         Document PDFCombineUsingJava = new Document();
                         PdfSmartCopy copy = new PdfSmartCopy(PDFCombineUsingJava, new FileOutputStream("CombinedPDFDocument.pdf"));
                         PDFCombineUsingJava.open();
-                        PdfReader ReadInputPDF;
                         int number_of_pages;
                         for (File inputFile : inputFiles) {
-                            ReadInputPDF = new PdfReader(inputFile.toString());
+                            PdfReader ReadInputPDF = new PdfReader(inputFile.toString());
                             number_of_pages = ReadInputPDF.getNumberOfPages();
                             for (int page = 0; page < number_of_pages; ) {
                                 copy.addPage(copy.getImportedPage(ReadInputPDF, ++page));
                             }
+                            copy.freeReader(ReadInputPDF);
                             ReadInputPDF.close();
                         }
                         PDFCombineUsingJava.close();
