@@ -2,6 +2,7 @@ package com.deloitte;
 
 import com.itextpdf.text.Document;
 import com.itextpdf.text.DocumentException;
+import com.itextpdf.text.pdf.BadPdfFormatException;
 import com.itextpdf.text.pdf.PdfReader;
 import com.itextpdf.text.pdf.PdfSmartCopy;
 import com.sforce.soap.enterprise.*;
@@ -77,16 +78,24 @@ public class MergeAndUploadPDF {
                         Document PDFCombineUsingJava = new Document();
                         PdfSmartCopy copy = new PdfSmartCopy(PDFCombineUsingJava, new FileOutputStream("CombinedPDFDocument.pdf"));
                         PDFCombineUsingJava.open();
-                        int number_of_pages;
-                        for (File inputFile : inputFiles) {
-                            PdfReader ReadInputPDF = new PdfReader(inputFile.toString());
+                        int number_of_pages = 0;
+                        inputFiles.parallelStream().forEachOrdered(inputFile -> {
+                            try {
+                                createFiles(inputFile, number_of_pages, copy);
+                            } catch (IOException | BadPdfFormatException e) {
+                                e.printStackTrace();
+                            }
+                        });
+
+                        //for (File inputFile : inputFiles) {
+                            /*PdfReader ReadInputPDF = new PdfReader(inputFile.toString());
                             number_of_pages = ReadInputPDF.getNumberOfPages();
                             for (int page = 0; page < number_of_pages; ) {
                                 copy.addPage(copy.getImportedPage(ReadInputPDF, ++page));
                             }
                             copy.freeReader(ReadInputPDF);
-                            ReadInputPDF.close();
-                        }
+                            ReadInputPDF.close();*/
+                        //}
                         PDFCombineUsingJava.close();
                         copy.close();
                         File mergedFile = new File("CombinedPDFDocument" + ".pdf");
@@ -121,6 +130,16 @@ public class MergeAndUploadPDF {
                     } catch (ConnectionException | IOException | DocumentException e) {
                         e.printStackTrace();
                     }
+                }
+
+                private void createFiles(File inputFile, int number_of_pages, PdfSmartCopy copy) throws IOException, BadPdfFormatException {
+                    PdfReader ReadInputPDF = new PdfReader(inputFile.toString());
+                    number_of_pages = ReadInputPDF.getNumberOfPages();
+                    for (int page = 0; page < number_of_pages; ) {
+                        copy.addPage(copy.getImportedPage(ReadInputPDF, ++page));
+                    }
+                    copy.freeReader(ReadInputPDF);
+                    ReadInputPDF.close();
                 }
             });
 
