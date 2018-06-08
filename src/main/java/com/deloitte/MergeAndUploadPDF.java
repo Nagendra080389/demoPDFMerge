@@ -10,10 +10,13 @@ import com.sforce.soap.enterprise.Error;
 import com.sforce.soap.enterprise.sobject.ContentVersion;
 import com.sforce.ws.ConnectionException;
 import com.sforce.ws.ConnectorConfig;
+import org.apache.commons.io.IOUtils;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
@@ -87,15 +90,6 @@ public class MergeAndUploadPDF {
                             }
                         });
 
-                        //for (File inputFile : inputFiles) {
-                            /*PdfReader ReadInputPDF = new PdfReader(inputFile.toString());
-                            number_of_pages = ReadInputPDF.getNumberOfPages();
-                            for (int page = 0; page < number_of_pages; ) {
-                                copy.addPage(copy.getImportedPage(ReadInputPDF, ++page));
-                            }
-                            copy.freeReader(ReadInputPDF);
-                            ReadInputPDF.close();*/
-                        //}
                         PDFCombineUsingJava.close();
                         copy.close();
                         File mergedFile = new File("CombinedPDFDocument" + ".pdf");
@@ -104,8 +98,9 @@ public class MergeAndUploadPDF {
                         System.out.println("Creating ContentVersion record...");
                         ContentVersion[] record = new ContentVersion[1];
                         ContentVersion mergedContentData = new ContentVersion();
-
-                        mergedContentData.setVersionData(Files.readAllBytes(mergedFile.toPath()));
+                        InputStream is = new FileInputStream(mergedFile);
+                        mergedContentData.setVersionData(IOUtils.toByteArray(is));
+                        is.close();
                         mergedContentData.setFirstPublishLocationId(parentId);
                         mergedContentData.setTitle("Merged Document");
                         mergedContentData.setPathOnClient("/CombinedPDFDocument.pdf");
@@ -197,7 +192,10 @@ public class MergeAndUploadPDF {
             ContentVersion[] record = new ContentVersion[1];
             ContentVersion splitContentData = new ContentVersion();
 
-            splitContentData.setVersionData(Files.readAllBytes(splitFile.toPath()));
+            InputStream is = new FileInputStream(splitFile);
+            splitContentData.setVersionData(IOUtils.toByteArray(is));
+
+            is.close();
             splitContentData.setFirstPublishLocationId(parentId);
             splitContentData.setTitle("Split Document");
             splitContentData.setPathOnClient(FileName);
