@@ -13,6 +13,7 @@ import com.sforce.ws.ConnectionException;
 import com.sforce.ws.ConnectorConfig;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.slf4j.LoggerFactory;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -25,6 +26,7 @@ import java.util.concurrent.Executors;
 
 public class MergeAndUploadPDF {
 
+    private static final org.slf4j.Logger LOGGER = LoggerFactory.getLogger(MergeAndUploadPDF.class);
     static EnterpriseConnection connection;
     private static final ExecutorService THREADPOOL = Executors.newCachedThreadPool();
 
@@ -105,7 +107,7 @@ public class MergeAndUploadPDF {
                         File mergedFile = new File("CombinedPDFDocument" + ".pdf");
                         mergedFile.createNewFile();
 
-                        System.out.println("Creating ContentVersion record...");
+                        LOGGER.info("Creating ContentVersion record...");
                         ContentVersion[] record = new ContentVersion[1];
                         ContentVersion mergedContentData = new ContentVersion();
                         mergedContentData.setVersionData(readFromFile(mergedFile.getName()));
