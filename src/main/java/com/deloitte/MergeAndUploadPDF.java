@@ -18,7 +18,9 @@ import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -55,8 +57,6 @@ public class MergeAndUploadPDF {
 
                     try {
                         connection = Connector.newConnection(config);
-
-
                         for (String contentDocId : contentDocIds) {
                             // query for the attachment data
                             QueryResult queryResults = connection.query(
@@ -70,8 +70,8 @@ public class MergeAndUploadPDF {
                                     System.out.println(i + "..file size.." + contentData.getVersionData().length + "    "
                                             + contentData.getVersionData());
                                     File tempFile = File.createTempFile("test_", ".pdf", null);
-                                    try (FileOutputStream fos = new FileOutputStream(tempFile)) {
-                                        fos.write(contentData.getVersionData());
+                                    try (OutputStream os = Files.newOutputStream(Paths.get(tempFile.toURI()))) {
+                                        os.write(contentData.getVersionData());
                                     }
                                     inputFiles.add(tempFile);
                                 }
@@ -98,9 +98,9 @@ public class MergeAndUploadPDF {
                         System.out.println("Creating ContentVersion record...");
                         ContentVersion[] record = new ContentVersion[1];
                         ContentVersion mergedContentData = new ContentVersion();
-                        InputStream is = new FileInputStream(mergedFile);
-                        mergedContentData.setVersionData(IOUtils.toByteArray(is));
-                        is.close();
+                        //InputStream is = new FileInputStream(mergedFile);
+                        mergedContentData.setVersionData(readFromFile(mergedFile.getName()));
+                        //is.close();
                         mergedContentData.setFirstPublishLocationId(parentId);
                         mergedContentData.setTitle("Merged Document");
                         mergedContentData.setPathOnClient("/CombinedPDFDocument.pdf");
@@ -143,6 +143,22 @@ public class MergeAndUploadPDF {
             e.printStackTrace();
         }
 
+    }
+
+    public static byte[] readFromFile(String fileName) throws IOException {
+        byte[] buf = new byte[8192];
+        try (InputStream is = Files.newInputStream(Paths.get(fileName))) {
+            int len = is.read(buf);
+            if (len < buf.length) {
+                return Arrays.copyOf(buf, len);
+            }
+            ByteArrayOutputStream os = new ByteArrayOutputStream(16384);
+            while (len != -1) {
+                os.write(buf, 0, len);
+                len = is.read(buf);
+            }
+            return os.toByteArray();
+        }
     }
 
     // split 1 pdf file and get first page out of it
