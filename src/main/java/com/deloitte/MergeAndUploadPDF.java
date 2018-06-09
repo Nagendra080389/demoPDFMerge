@@ -8,15 +8,13 @@ import com.itextpdf.text.pdf.PdfSmartCopy;
 import com.sforce.soap.enterprise.*;
 import com.sforce.soap.enterprise.Error;
 import com.sforce.soap.enterprise.sobject.ContentVersion;
+import com.sforce.soap.enterprise.sobject.SObject;
 import com.sforce.ws.ConnectionException;
 import com.sforce.ws.ConnectorConfig;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.MappedByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -31,7 +29,7 @@ public class MergeAndUploadPDF {
     private static final ExecutorService THREADPOOL = Executors.newCachedThreadPool();
 
     // queries and displays the 5 newest contacts
-    public static void mergeanduploadPDF(String file1Id, String file2Id, String parentId, String accessToken, String instanceURL, boolean useSoap) {
+    public static void mergeanduploadPDF(String file1Ids, String accessToken, String instanceURL, boolean useSoap) {
 
         System.out.println("Querying for the mail request...");
 
@@ -43,10 +41,6 @@ public class MergeAndUploadPDF {
             config.setServiceEndpoint(instanceURL + "/services/Soap/T/40.0");
         }
 
-        List<String> contentDocIds = new ArrayList<String>();
-        contentDocIds.add(file1Id);
-        contentDocIds.add(file2Id);
-
         List<File> inputFiles = new ArrayList<File>();
 
         try {
@@ -54,27 +48,43 @@ public class MergeAndUploadPDF {
             THREADPOOL.execute(new Runnable() {
                 @Override
                 public void run() {
+                    String[] split = file1Ids.split(",");
+                    String parentId = split[split.length-1];
+                    StringBuilder buff = new StringBuilder();
+                    String sep = "";
+                    for (String str : split) {
+                        if(str != parentId) {
+                            buff.append(sep);
+                            buff.append("'"+str+"'");
+                            sep = ",";
+                        }
+                    }
+                    String queryIds = buff.toString();
 
                     try {
                         connection = Connector.newConnection(config);
-                        for (String contentDocId : contentDocIds) {
-                            // query for the attachment data
-                            QueryResult queryResults = connection.query(
-                                    "Select Id,VersionData from ContentVersion where Id IN(Select LatestPublishedVersionId from ContentDocument where Id = '"
-                                            + contentDocId + "')");
-                            if (queryResults.getSize() > 0) {
-                                System.out.println("in here.." + queryResults.getSize());
-                                for (int i = 0; i < queryResults.getSize(); i++) {
-                                    // cast the SObject to a strongly-typed Mail_Request__c
-                                    ContentVersion contentData = (ContentVersion) queryResults.getRecords()[i];
-                                    System.out.println(i + "..file size.." + contentData.getVersionData().length + "    "
-                                            + contentData.getVersionData());
+                        QueryResult queryResults = connection.query(
+                                "Select Id,VersionData from ContentVersion where Id IN (Select LatestPublishedVersionId from ContentDocument where Id IN ("
+                                        + queryIds + "))");
+
+                        boolean done = false;
+
+                        if (queryResults.getSize() > 0) {
+                            while (!done) {
+                                for (SObject sObject : queryResults.getRecords()) {
+                                    ContentVersion contentData = (ContentVersion) sObject;
                                     File tempFile = File.createTempFile("test_", ".pdf", null);
                                     try (OutputStream os = Files.newOutputStream(Paths.get(tempFile.toURI()))) {
                                         os.write(contentData.getVersionData());
                                     }
                                     inputFiles.add(tempFile);
                                 }
+                                if (queryResults.isDone()) {
+                                   done = true;
+                                }else {
+                                    queryResults = connection.queryMore(queryResults.getQueryLocator());
+                                }
+
                             }
                         }
 
@@ -98,9 +108,7 @@ public class MergeAndUploadPDF {
                         System.out.println("Creating ContentVersion record...");
                         ContentVersion[] record = new ContentVersion[1];
                         ContentVersion mergedContentData = new ContentVersion();
-                        //InputStream is = new FileInputStream(mergedFile);
                         mergedContentData.setVersionData(readFromFile(mergedFile.getName()));
-                        //is.close();
                         mergedContentData.setFirstPublishLocationId(parentId);
                         mergedContentData.setTitle("Merged Document");
                         mergedContentData.setPathOnClient("/CombinedPDFDocument.pdf");
@@ -152,12 +160,13 @@ public class MergeAndUploadPDF {
             if (len < buf.length) {
                 return Arrays.copyOf(buf, len);
             }
-            ByteArrayOutputStream os = new ByteArrayOutputStream(16384);
-            while (len != -1) {
-                os.write(buf, 0, len);
-                len = is.read(buf);
+            try(ByteArrayOutputStream os = new ByteArrayOutputStream(16384)){
+                while (len != -1) {
+                    os.write(buf, 0, len);
+                    len = is.read(buf);
+                }
+                return os.toByteArray();
             }
-            return os.toByteArray();
         }
     }
 
